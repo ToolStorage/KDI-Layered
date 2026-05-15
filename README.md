@@ -184,55 +184,48 @@ public class PlayerHUD : DIBehaviour, IViewLayer
 
 ---
 
-## 검증 (Build-time)
+## 검증
 
-`LayerValidator`가 잘못된 `[Inject]` 의존을 발견하면 `LayerViolationException`을 throw한다.
+레이어 방향 위반을 두 단계로 잡는다.
+
+### 1단계 — Roslyn Analyzer (컴파일 타임)
+
+패키지에 동봉된 `Kylin.DI.Layered.Analyzer.dll`이 IDE/컴파일러에 자동으로 등록되어 `[Inject]` 필드의 레이어 방향을 검사한다. 위반은 빨간 밑줄로 보이고 빌드가 실패한다. **별도 설정 없이 동작.**
+
+| 진단 코드 | 의미 | severity |
+|---|---|---|
+| `KDI001` | 같은 레이어끼리 주입 (ViewModel ↔ ViewModel 등) | Error |
+| `KDI002` | 하위 레이어가 상위 레이어를 주입 (ViewModel → View 등) | Error |
 
 ```csharp
-// 위반 예시
 public class BadVM : IPlayerVM
 {
-    [Inject] private IEnemyVM _enemy;   // ❌ same layer (ViewModel → ViewModel)
-    [Inject] private IPlayerHUD _hud;   // ❌ upward (ViewModel → View)
+    [Inject] private IEnemyVM _enemy;   // KDI001: same-layer
+    [Inject] private IPlayerHUD _hud;   // KDI002: upward
 }
 ```
 
-### 등록 시점에 직접 호출
+런타임 오버헤드는 0. 분석은 컴파일/IDE 시간에만 동작한다.
+
+### 2단계 — Runtime Validator (선택)
+
+`LayerValidator`로 동적으로 등록되는 타입(reflection으로 늦게 주입되는 케이스 등)도 검사할 수 있다. analyzer가 잡지 못하는 reflection 기반 코드를 보완한다.
 
 ```csharp
 public class GameScope : LifetimeScope
 {
     protected override void Configure(ScopeBuilder builder)
     {
-        LayerValidator.Validate(typeof(PlayerData));
-        LayerValidator.Validate(typeof(PlayerDomain));
-        LayerValidator.Validate(typeof(CombatApp));
-        LayerValidator.Validate(typeof(PlayerVM));
+        LayerValidator.Validate(typeof(PlayerData));   // 단일 타입
+        LayerValidator.ValidateAssembly(typeof(PlayerData).Assembly);  // 어셈블리 전체
 
         builder.Bind<IPlayerData>().To<PlayerData>().AsSingleton();
-        builder.Bind<IPlayerDomain>().To<PlayerDomain>().AsSingleton();
-        builder.Bind<ICombatApp>().To<CombatApp>().AsSingleton();
-        builder.Bind<IPlayerVM>().To<PlayerVM>().AsSingleton();
+        // ...
     }
 }
 ```
 
-### 어셈블리 전체 일괄 검증
-
-전체 게임 어셈블리를 한 번에 검사하려면 `RuntimeInitializeOnLoadMethod`에서:
-
-```csharp
-public static class LayerBootstrap
-{
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    public static void ValidateAll()
-    {
-        LayerValidator.ValidateAssembly(typeof(PlayerData).Assembly);
-    }
-}
-```
-
-위반이 발견되면 게임 시작 즉시 예외가 던져져 빠르게 잡힌다.
+위반 시 `LayerViolationException` 발생.
 
 ---
 

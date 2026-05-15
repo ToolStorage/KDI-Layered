@@ -6,6 +6,11 @@ CLAUDE.md
 .aider*
 .codex/
 
+# Analyzer build artifacts (DLL is rebuilt by CI before publish)
+Analyzer~/bin/
+Analyzer~/obj/
+Analyzers/*.dll
+
 # OS junk
 .DS_Store
 Thumbs.db
