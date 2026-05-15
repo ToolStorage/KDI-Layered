@@ -1,6 +1,6 @@
 {
   "name": "com.kylin.di.layered",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "displayName": "KDI Layered Architecture",
   "description": "Five-layer one-way dependency enforcement on top of Kylin DI. Marker interfaces (View / ViewModel / ApplicationService / DomainService / Data) and a build-time validator that rejects same-layer or upward injections.",
   "unity": "6000.0",

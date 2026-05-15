@@ -1,0 +1,22 @@
+# AI assistant / agent artifacts (also gitignored)
+CLAUDE.md
+.claude/
+.omc/
+.cursor/
+.aider*
+.codex/
+
+# Analyzer source — consumers only need the compiled DLL
+Analyzer~/
+
+# Build temp from dotnet
+Analyzers/bin/
+Analyzers/obj/
+
+# Repo / CI metadata not needed by consumers
+.github/
+.gitignore
+
+# OS junk
+.DS_Store
+Thumbs.db

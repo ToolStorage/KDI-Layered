@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.5] - 2026-05-15
+
+### Fixed
+- Tarball now actually ships `Kylin.DI.Layered.Analyzer.dll`. Without an `.npmignore`, npm publish was falling back to `.gitignore`, which excluded the freshly-built DLL. Added an explicit `.npmignore` that excludes only AI artifacts, dotnet build temp, and repo metadata.
+
 ## [1.0.4] - 2026-05-15
 
 ### Added
