@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.1] - 2026-05-18
+
+### Fixed
+- External IDEs (Rider, VS Code) failed to load `Kylin.DI.Layered.Analyzer.dll` after a package update because the generated .csproj kept the old `Library/PackageCache/com.kylin.di.layered@<hash>/` absolute path. Added an Editor-only `[InitializeOnLoad]` script that subscribes to `UnityEditor.PackageManager.Events.registeredPackages` and calls `CodeEditor.CurrentEditor.SyncAll()` when this package is added or upgraded, forcing the IDE project files to regenerate with the new hashed path. Unity's own Editor compiler was already unaffected.
+
 ## [1.1.0] - 2026-05-18
 
 ### Added
