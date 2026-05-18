@@ -12,6 +12,8 @@ Analyzer~/
 # Build temp from dotnet
 Analyzers/bin/
 Analyzers/obj/
+Analyzers/*.pdb
+Analyzers/*.deps.json
 
 # Repo / CI metadata not needed by consumers
 .github/

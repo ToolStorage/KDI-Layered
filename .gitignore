@@ -10,6 +10,8 @@ CLAUDE.md
 Analyzer~/bin/
 Analyzer~/obj/
 Analyzers/*.dll
+Analyzers/*.pdb
+Analyzers/*.deps.json
 
 # OS junk
 .DS_Store

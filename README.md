@@ -66,6 +66,7 @@ Data                  ← SubscribableProperty 보유, 외부 노출은 IReadOnl
 |---|---|---|
 | `IDataLayer` | private SubscribableProperty 보유, 외부 노출은 `IReadOnly~`로만 | `IDependencyObject` |
 | `IDomainServiceLayer` | 단일 Data 변경 권한 (singleton 권장) | `IDependencyObject`, `IInjectable` |
+| `IDomainServiceLayer<TOwnedData>` | 위와 동일 + 변경 권한이 있는 Data를 타입으로 명시 (선택, `[OwnerOnly]`와 함께 사용) | `IDomainServiceLayer` |
 | `IApplicationServiceLayer` | 다중 Data/DomainService 조율 (singleton 권장) | `IDependencyObject`, `IInjectable` |
 | `IViewModelLayer` | View가 사용할 값/명령 (singleton 또는 per-view) | `IDependencyObject`, `IInjectable` |
 | `IViewLayer` | UI/Unit visualization (MonoBehaviour 권장) | `IInjectable` |
@@ -184,6 +185,62 @@ public class PlayerHUD : DIBehaviour, IViewLayer
 
 ---
 
+## DomainService의 소유권 명시 (선택)
+
+DomainService는 "단일 Data의 변경 책임자"라는 게 컨벤션이지만, 컴파일러는 그걸 모른다. 같은 Data에 다른 DomainService나 ApplicationService가 setter를 직접 호출해도 막을 길이 없으면 layer 분리의 의미가 사라진다.
+
+이를 컴파일 타임에 강제하고 싶다면, **`IDomainServiceLayer<TOwnedData>`로 소유 데이터를 선언**하고 **변경 메서드에 `[OwnerOnly]`를 붙인다**. 인터페이스를 분리할 필요 없이 메서드 단위로 게이트 친다.
+
+```csharp
+public class PlayerData : IDataLayer
+{
+    private readonly SubscribableProperty<int> _health = new(100);
+    public IReadOnlySubscribableProperty<int> Health => _health;
+
+    [OwnerOnly] public void SetHealth(int v) => _health.Value = v;
+}
+
+public interface IPlayerDomain : IDomainServiceLayer<PlayerData>
+{
+    void ApplyDamage(int amount);
+}
+
+public class PlayerDomain : IPlayerDomain
+{
+    [Inject] private PlayerData _player;   // owner
+    [Inject] private EnemyData  _enemy;    // 다른 Data는 read-only로만
+
+    public void ApplyDamage(int dmg)
+    {
+        _player.SetHealth(_player.Health.Value - dmg);   // ✅ owner
+        // _enemy.SetDefense(0);                          // ❌ KDI003: not owner of EnemyData
+    }
+}
+
+public class CombatApp : ICombatApp     // IApplicationServiceLayer
+{
+    [Inject] private PlayerData _player;
+    [Inject] private IPlayerDomain _playerDomain;
+
+    public void ResolveAttack(int dmg)
+    {
+        // _player.SetHealth(0);            // ❌ KDI003: AppService는 어떤 Data의 owner도 아님
+        _playerDomain.ApplyDamage(dmg);     // ✅ 도메인을 거쳐서 변경
+    }
+}
+```
+
+규칙 요약:
+
+- `IDomainServiceLayer<T>`는 "이 도메인이 T의 변경 책임자"임을 타입으로 선언한다. 코드 리뷰어가 한눈에 owner를 확인할 수 있다.
+- `[OwnerOnly]` 멤버 호출은 owner DomainService만 가능. 그 외 호출은 컴파일 에러(`KDI003`).
+- Data 클래스 내부(서브클래스 포함)에서 자기 `[OwnerOnly]` 메서드를 호출하는 건 항상 허용.
+- 속성에 `[OwnerOnly]`를 붙이면 양방향 차단. set 접근자에만 붙이면(`{ get; [OwnerOnly] set; }`) 읽기는 허용, 쓰기만 차단.
+- 다중 소유가 필요하면 `IDomainServiceLayer<DataA>, IDomainServiceLayer<DataB>` 식으로 여러 번 구현하면 된다.
+- 완전 opt-in이다. `[OwnerOnly]`를 안 붙이면 기존과 동일하게 자유롭게 호출 가능 — 중요한 Data부터 점진 적용을 권장한다.
+
+---
+
 ## 검증
 
 레이어 방향 위반을 두 단계로 잡는다.
@@ -196,6 +253,7 @@ public class PlayerHUD : DIBehaviour, IViewLayer
 |---|---|---|
 | `KDI001` | 같은 레이어끼리 주입 (ViewModel ↔ ViewModel 등) | Error |
 | `KDI002` | 하위 레이어가 상위 레이어를 주입 (ViewModel → View 등) | Error |
+| `KDI003` | `[OwnerOnly]` 멤버를 owner가 아닌 클래스에서 호출 | Error |
 
 ```csharp
 public class BadVM : IPlayerVM
@@ -231,7 +289,9 @@ public class GameScope : LifetimeScope
 
 ## 무엇을 강제하고 무엇을 강제하지 않는가
 
-**강제**: `[Inject]` 필드의 레이어 방향 (같은 레이어 / 상위 레이어 금지)
+**강제**:
+- `[Inject]` 필드의 레이어 방향 (같은 레이어 / 상위 레이어 금지) — 항상
+- `[OwnerOnly]` 멤버 호출자 (owner DomainService 한정) — 명시적으로 attribute를 붙인 경우에만 opt-in
 
 **강제하지 않음** — 컨벤션으로만 권장:
 - Lifetime (AsSingleton/Scoped/Transient): 자유롭게 선택
